@@ -19,7 +19,6 @@
 
 
 #include <boost/program_options.hpp>
-#include <yaml-cpp/yaml.h>
 #include "sensor_input/imu_simulator.h"
 #include "imu_preintegration/preintegration.h"
 #include "common/random.h"
