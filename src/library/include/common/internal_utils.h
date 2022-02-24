@@ -11,7 +11,6 @@
 #define COMMON_INTERNAL_UTILS_H
 
 #include "common/math_utils.h"
-#include "yaml-cpp/yaml.h"
 #include <utility>
 #include <numeric>
 
