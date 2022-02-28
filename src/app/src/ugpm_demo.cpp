@@ -16,7 +16,8 @@
 
 #include <iostream>
 #include <string>
-
+#include <stdio.h>
+#include <fstream>
 
 #include <boost/program_options.hpp>
 #include "sensor_input/imu_simulator.h"
@@ -25,6 +26,39 @@
 #include "common/utils.h"
 
 
+std::vector<std::vector<double>> readCSV()
+{
+    std::ifstream f;
+
+    f.open ("../test.txt");   /* open file with filename as argument */
+    if (! f.is_open()) {    /* validate file open for reading */
+        std::cerr << "error: file open failed.\n";
+    }
+
+    std::string line, val;                  /* string for line & value */
+    std::vector<std::vector<double>> array;    /* vector of vector<int>  */
+
+    while (std::getline (f, line)) {        /* read each line */
+        std::vector<double> v;                 /* row vector v */
+        std::stringstream s (line);         /* stringstream line */
+        while (getline (s, val, ','))       /* get each value (',' delimited) */
+            v.push_back (std::stod (val));  /* add to row vector */
+        array.push_back (v);                /* add row vector to array */
+    }
+
+    return array;
+}
+
+void convertArray(std::vector<std::vector<double>> *array){
+    
+    std::cout << "iterating over loaded csv file: \n";
+    for (auto& row : *array) {               /* iterate over rows */
+        for (auto& val : row)               /* iterate over vals */
+            std::cout << val << "  ";       /* output value      */
+        std::cout << "\n";                  /* tidy up with '\n' */
+    }
+
+}
 
 int main(int argc, char* argv[]){
 
@@ -123,6 +157,8 @@ int main(int argc, char* argv[]){
     double end_t = start_t + integration_length;
     celib::ImuData data = imu_sim.get(start_t-overlap, end_t+overlap);
 
+    data.print();
+
     // Create a preintegration object
     preint_opt.min_freq = 1000;
     celib::PreintPrior prior;
@@ -157,10 +193,11 @@ int main(int argc, char* argv[]){
     std::cout << "Covariance" << std::endl << preint_meas.cov << std::endl;
     std::cout << std::endl;
 
+    preint_meas.print();
 
+    std::vector<std::vector<double>> array = readCSV();
 
-
-
+    convertArray(&array);
 
     if(test_jacobians)
     {
