@@ -29,7 +29,7 @@
 std::vector<std::vector<double>> readCSV()
 {
     std::ifstream f;
-
+    std::cout << "reading IMU csv file \n";
     f.open ("../test.txt");   /* open file with filename as argument */
     if (! f.is_open()) {    /* validate file open for reading */
         std::cerr << "error: file open failed.\n";
@@ -49,15 +49,46 @@ std::vector<std::vector<double>> readCSV()
     return array;
 }
 
-void convertArray(std::vector<std::vector<double>> *array){
+celib::ImuData convertArray(std::vector<std::vector<double>> *array){
     
-    std::cout << "iterating over loaded csv file: \n";
-    for (auto& row : *array) {               /* iterate over rows */
-        for (auto& val : row)               /* iterate over vals */
-            std::cout << val << "  ";       /* output value      */
-        std::cout << "\n";                  /* tidy up with '\n' */
-    }
+    std::cout << "converting csv array to ImuData format: \n";
+    int i;
+    double t, acc_x, acc_y, acc_z, gyr_x, gyr_y, gyr_z;
 
+    celib::ImuData imu_data;
+
+    for (auto& row : *array) {               /* iterate over rows */
+        celib::ImuSample acc, gyr;
+        i = 0;
+        for (auto& val : row){               /* iterate over vals */
+
+            switch(i){
+                case 0: t = val;
+                case 1: acc_x = val;
+                case 2: acc_y = val;
+                case 3: acc_z = val;
+                case 4: gyr_x = val;
+                case 5: gyr_y = val;
+                case 6: gyr_z = val; 
+            }
+            i++;        
+        }
+
+        double acc_data[3] = {acc_x, acc_y, acc_z};
+        double gyr_data[3] = {gyr_x, gyr_y, gyr_z};
+        acc.t = t;
+        gyr.t = t;
+        memcpy(acc.data, acc_data, sizeof(acc_data));
+        memcpy(gyr.data, gyr_data, sizeof(gyr_data));
+
+        imu_data.acc.push_back(acc);
+        imu_data.gyr.push_back(gyr);
+        imu_data.acc_var = 1.25e-7;
+        imu_data.gyr_var = 2.0e-4;
+        
+    }
+    imu_data.print();
+    return imu_data;
 }
 
 int main(int argc, char* argv[]){
@@ -197,8 +228,8 @@ int main(int argc, char* argv[]){
 
     std::vector<std::vector<double>> array = readCSV();
 
-    convertArray(&array);
-
+    celib::ImuData imu_data = convertArray(&array);
+    
     if(test_jacobians)
     {
         double num_quantum = 0.001;
