@@ -74,13 +74,7 @@ std::vector<std::string> readYAML()
                 }
             }
         }
-
-
     }
-    for(std::string str : paths){
-        std::cout << str << " \n";
-    }
-
     return paths;
 }
 
@@ -149,7 +143,6 @@ celib::ImuData convertArray(std::vector<std::vector<double>> *array){
         imu_data.gyr_var = 2.0e-4;
         
     }
-    imu_data.print();
     return imu_data;
 }
 
@@ -234,48 +227,36 @@ int main(int argc, char* argv[]){
 
 
 
+    std::vector<std::string> paths = readYAML();
+    std::vector<std::vector<double>> imu_array = readCSV(paths[0]);
+    celib::ImuData imu_data = convertArray(&imu_array);
 
-
-
-    // Create an IMU simulator
-    celib::ImuSimulatorOption sim_opt;
-    sim_opt.acc_std = 0.02;
-    sim_opt.gyr_std = 0.002;
-    celib::ImuSimulator imu_sim(sim_opt);
-
-    // Create some fake data
-    double overlap = 0.15;
-    celib::RandomGenerator rand_gen;
-    double start_t = rand_gen.randUniform(overlap,sim_opt.dataset_length - integration_length - overlap);
-    double end_t = start_t + integration_length;
-    celib::ImuData data = imu_sim.get(start_t-overlap, end_t+overlap);
-
-    data.print();
 
     // Create a preintegration object
     preint_opt.min_freq = 1000;
     celib::PreintPrior prior;
+    
+    double start_t = 0.01;
+    
     std::vector<std::vector<double> > t;
-    std::vector<double> temp_t;
-    temp_t.push_back(end_t);
-    t.push_back(temp_t);
-    std::vector<double> temp_t_2;
-    for(int i = 0; i < nb_infer; ++i)
-    {
-        double ratio = i/(double)(nb_infer);
-        temp_t_2.push_back(start_t*(1-ratio) + end_t*ratio);
-    }
-    t.push_back(temp_t_2);
+    std::vector<double> tmp1_ = {1.01};
 
-    // Test some data
+    t.push_back(tmp1_);
+
+
     celib::StopWatch stop_watch;
     stop_watch.start();
-    celib::ImuPreintegration preint(data, start_t, t, preint_opt, prior);
+    celib::ImuPreintegration preint(imu_data, start_t, t, preint_opt, prior);
     stop_watch.stop();
     stop_watch.print();
 
-    celib::PreintMeas preint_meas = preint.get(0,0);
 
+   
+    celib::PreintMeas preint_meas = preint.get(0,0);
+    preint_meas.print();
+
+
+    /*
     std::vector<double> error = imu_sim.testPreint(start_t, end_t, preint.get(0,0));
 
     std::cout << "Preintegration errors over window of " << preint_meas.dt << " seconds:" << std::endl;
@@ -286,15 +267,10 @@ int main(int argc, char* argv[]){
     std::cout << "Covariance" << std::endl << preint_meas.cov << std::endl;
     std::cout << std::endl;
 
-    preint_meas.print();
-
     
-
-    std::vector<std::string> paths = readYAML();
-    std::vector<std::vector<double>> imu_array = readCSV(paths[0]);
-    //celib::ImuData imu_data = convertArray(&imu_array);
-
-
+    */
+    
+    /*
     if(test_jacobians)
     {
         double num_quantum = 0.001;
@@ -385,7 +361,7 @@ int main(int argc, char* argv[]){
         std::cout << preint_num_jacobian.d_delta_p_d_t.transpose() << std::endl;
         std::cout << std::endl;
     }
-
+    */
 
 
     return 0;

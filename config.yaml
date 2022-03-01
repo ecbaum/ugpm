@@ -1,3 +1,3 @@
 ugpm:
-    imu_raw: ../../data/test.txt
+    imu_raw: ../../data/imu_raw3s.txt
     sampling_times: filepath2
