@@ -25,12 +25,73 @@
 #include "common/random.h"
 #include "common/utils.h"
 
+std::string get_path(std::string &str, int N){
 
-std::vector<std::vector<double>> readCSV()
+    int start_of_path;
+    std::string path;
+    for (int i = 0; i < N; i++) {
+        if(int(str[i]) == 58){
+            start_of_path = i+1;
+        }
+    }
+    path = str.substr(start_of_path, N);
+    path.erase(std::remove_if(path.begin(), path.end(), [](unsigned char x) { return std::isspace(x); }), path.end());
+    
+    return path;
+}
+
+std::vector<std::string> readYAML()
+{
+    /* This is a primitive yaml-reader custom build for the expected yaml-file*/
+
+    std::ifstream f;
+
+    f.open ("../config.yaml");   /* open file with filename as argument */
+    if (! f.is_open()) {    /* validate file open for reading */
+        std::cerr << "error: file open failed.\n";
+    }
+
+    std::vector<std::string> expected_strings = {"imu_raw:", "sampling_times:"};
+    std::vector<std::string> paths;
+
+    int expected_amount = expected_strings.size();
+    int retrieved_amount = 0;
+
+    bool in_ugpm = false;
+    std::string line;
+
+    while (std::getline (f, line)) {        /* read each line */
+        if(line.find("ugpm:") != std::string::npos){
+            in_ugpm = true;
+        }
+        if(in_ugpm){
+            for(std::string str : expected_strings){
+                if ( line.find(str) != std::string::npos && retrieved_amount<expected_amount) {
+                    int N = line.length();
+                    std::string path = get_path(line,N);
+                    paths.push_back(path);
+                    retrieved_amount++;
+                }
+            }
+        }
+
+
+    }
+    for(std::string str : paths){
+        std::cout << str << " \n";
+    }
+
+    return paths;
+}
+
+
+
+std::vector<std::vector<double>> readCSV(std::string raw_imu_path)
 {
     std::ifstream f;
     std::cout << "reading IMU csv file \n";
-    f.open ("../test.txt");   /* open file with filename as argument */
+    //f.open ("../test.txt");   /* open file with filename as argument */
+    f.open (raw_imu_path);   /* open file with filename as argument */
     if (! f.is_open()) {    /* validate file open for reading */
         std::cerr << "error: file open failed.\n";
     }
@@ -48,6 +109,7 @@ std::vector<std::vector<double>> readCSV()
 
     return array;
 }
+
 
 celib::ImuData convertArray(std::vector<std::vector<double>> *array){
     
@@ -226,10 +288,13 @@ int main(int argc, char* argv[]){
 
     preint_meas.print();
 
-    std::vector<std::vector<double>> array = readCSV();
-
-    celib::ImuData imu_data = convertArray(&array);
     
+
+    std::vector<std::string> paths = readYAML();
+    std::vector<std::vector<double>> imu_array = readCSV(paths[0]);
+    //celib::ImuData imu_data = convertArray(&imu_array);
+
+
     if(test_jacobians)
     {
         double num_quantum = 0.001;
