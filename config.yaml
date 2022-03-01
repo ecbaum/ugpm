@@ -1,3 +1,4 @@
 ugpm:
     imu_raw: ../../data/imu_raw3s.txt
-    sampling_times: filepath2
+    sampling_times: ../../data/sample_times.txt
+    save_path: ../../data/pre_integrated.txt

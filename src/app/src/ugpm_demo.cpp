@@ -18,7 +18,7 @@
 #include <string>
 #include <stdio.h>
 #include <fstream>
-
+#include <iomanip> 
 #include <boost/program_options.hpp>
 #include "sensor_input/imu_simulator.h"
 #include "imu_preintegration/preintegration.h"
@@ -51,7 +51,7 @@ std::vector<std::string> readYAML()
         std::cerr << "error: file open failed.\n";
     }
 
-    std::vector<std::string> expected_strings = {"imu_raw:", "sampling_times:"};
+    std::vector<std::string> expected_strings = {"imu_raw:", "sampling_times:", "save_path"};
     std::vector<std::string> paths;
 
     int expected_amount = expected_strings.size();
@@ -80,12 +80,12 @@ std::vector<std::string> readYAML()
 
 
 
-std::vector<std::vector<double>> readCSV(std::string raw_imu_path)
+std::vector<std::vector<double>> readCSV(std::string path)
 {
     std::ifstream f;
-    std::cout << "reading IMU csv file \n";
-    //f.open ("../test.txt");   /* open file with filename as argument */
-    f.open (raw_imu_path);   /* open file with filename as argument */
+    std::cout << "reading csv file \n";
+
+    f.open (path);   /* open file with filename as argument */
     if (! f.is_open()) {    /* validate file open for reading */
         std::cerr << "error: file open failed.\n";
     }
@@ -104,6 +104,21 @@ std::vector<std::vector<double>> readCSV(std::string raw_imu_path)
     return array;
 }
 
+void saveCSV(std::string path, std::vector<std::vector<double>> *array){
+    std::ofstream myfile (path);
+    std::cout << "Saving csv to " << path << "\n"; 
+    if (myfile.is_open()){
+        for (const auto& inner : *array) {
+            for (const auto& item : inner) {
+
+                myfile << std::fixed << std::setprecision(9) << item << ", ";
+            }
+            myfile << "\n";  
+        }
+        myfile.close();
+    }else{
+        std::cout << "Unable to open file";} 
+}
 
 celib::ImuData convertArray(std::vector<std::vector<double>> *array){
     
@@ -144,6 +159,80 @@ celib::ImuData convertArray(std::vector<std::vector<double>> *array){
         
     }
     return imu_data;
+}
+
+std::vector<std::vector<double>> integrate_between_samples(celib::ImuData imu_data, std::vector<std::vector<double>> sample_time_array, celib::PreintOption preint_opt){
+    /*
+        Format is
+
+        t_i t_i+1 R_00 R_01 R_02 R_10 R_11 R_12 R_20 R_21 R_22 v_0 v_1 v_2
+
+        and is delta R and delta V between t_i and t_i+1
+
+    */
+    double t_iter, t_iter_prev;
+
+    t_iter_prev = sample_time_array[0][0];
+
+    int a = 0;
+    int N = sample_time_array.size();
+
+    std::vector<std::vector<double>> data_array;
+
+    for(int i = 1; i < N; i++){
+
+        std::vector<double> data_iter;
+
+        t_iter = sample_time_array[i][0];
+
+        celib::PreintPrior prior;
+    
+        double start_t = t_iter_prev;
+
+        std::vector<std::vector<double> > t;
+        std::vector<double> tmp1_ = {t_iter};
+        t.push_back(tmp1_);
+
+        
+        celib::StopWatch stop_watch;
+        stop_watch.start();
+        celib::ImuPreintegration preint(imu_data, start_t, t, preint_opt, prior);
+        stop_watch.stop();
+        stop_watch.print();
+
+        celib::PreintMeas preint_meas = preint.get(0,0);
+
+        data_iter.push_back(t_iter_prev);
+        data_iter.push_back(t_iter);
+
+        for(int x = 0; x < 3; x++){
+            for(int y = 0; y < 3; y++){
+                data_iter.push_back(preint_meas.delta_R.coeff(x,y));
+            }
+        }
+
+        data_iter.push_back(preint_meas.delta_v.coeff(0,0));
+        data_iter.push_back(preint_meas.delta_v.coeff(0,1));
+        data_iter.push_back(preint_meas.delta_v.coeff(0,2));
+
+        data_array.push_back(data_iter);
+        t_iter_prev = t_iter;
+    }
+    return data_array;
+}
+
+void pre_integrate_between_frames(celib::PreintOption preint_opt){
+    std::vector<std::string> paths = readYAML();
+    std::vector<std::vector<double>> imu_array, sample_time_array, data_array;
+
+    imu_array = readCSV(paths[0]);
+    sample_time_array = readCSV(paths[1]);
+
+    celib::ImuData imu_data = convertArray(&imu_array);
+
+    data_array = integrate_between_samples(imu_data, sample_time_array, preint_opt);
+
+    saveCSV(paths[2], &data_array);
 }
 
 int main(int argc, char* argv[]){
@@ -219,44 +308,17 @@ int main(int argc, char* argv[]){
         nb_infer = var_map["nb_inference"].as<int>() - 1;
     }
 
-    preint_opt.quantum = 0.2;
+    preint_opt.quantum = 0.02;
     if(var_map.count("quantum"))
     {
         preint_opt.quantum = var_map["quantum"].as<double>();
     }
 
-
-
-    std::vector<std::string> paths = readYAML();
-    std::vector<std::vector<double>> imu_array = readCSV(paths[0]);
-    celib::ImuData imu_data = convertArray(&imu_array);
-
-
-    // Create a preintegration object
     preint_opt.min_freq = 1000;
-    celib::PreintPrior prior;
-    
-    double start_t = 0.01;
-    
-    std::vector<std::vector<double> > t;
-    std::vector<double> tmp1_ = {1.01};
 
-    t.push_back(tmp1_);
+    pre_integrate_between_frames(preint_opt);
 
-
-    celib::StopWatch stop_watch;
-    stop_watch.start();
-    celib::ImuPreintegration preint(imu_data, start_t, t, preint_opt, prior);
-    stop_watch.stop();
-    stop_watch.print();
-
-
-   
-    celib::PreintMeas preint_meas = preint.get(0,0);
-    preint_meas.print();
-
-
-    /*
+  /*
     std::vector<double> error = imu_sim.testPreint(start_t, end_t, preint.get(0,0));
 
     std::cout << "Preintegration errors over window of " << preint_meas.dt << " seconds:" << std::endl;
