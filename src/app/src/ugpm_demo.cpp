@@ -104,14 +104,21 @@ std::vector<std::vector<double>> readCSV(std::string path)
     return array;
 }
 
-void saveCSV(std::string path, std::vector<std::vector<double>> *array){
+void saveCSV(std::string path, std::vector<std::vector<double>> *array, std::string seperator, int precision, std::string header){
+
     std::ofstream myfile (path);
     std::cout << "Saving csv to " << path << "\n"; 
+    
+    bool write_header = false;
+
     if (myfile.is_open()){
+        if(!header.empty()){
+            myfile << header << "\n";
+        }
         for (const auto& inner : *array) {
             for (const auto& item : inner) {
 
-                myfile << std::fixed << std::setprecision(9) << item << ", ";
+                myfile << std::fixed << std::setprecision(precision) << item << seperator << " ";
             }
             myfile << "\n";  
         }
@@ -165,9 +172,12 @@ std::vector<std::vector<double>> integrate_between_samples(celib::ImuData imu_da
     /*
         Format is
 
-        t_i t_i+1 R_00 R_01 R_02 R_10 R_11 R_12 R_20 R_21 R_22 v_0 v_1 v_2
+        t_i delta_t a_x a_y a_z w_x w_y w_z
 
-        and is delta R and delta V between t_i and t_i+1
+        t_i is current time
+        delta_t is t_i - t_i-1
+        a_x, a_y, a_z is defined as v_i - v_i-1
+        w_x, w_y, w_z is defined as angle_i - angle_i-1
 
     */
     double t_iter, t_iter_prev;
@@ -179,7 +189,7 @@ std::vector<std::vector<double>> integrate_between_samples(celib::ImuData imu_da
 
     std::vector<std::vector<double>> data_array;
 
-    for(int i = 1; i < N; i++){
+    for(int i = 0; i < N; i++){
 
         std::vector<double> data_iter;
 
@@ -201,19 +211,19 @@ std::vector<std::vector<double>> integrate_between_samples(celib::ImuData imu_da
         stop_watch.print();
 
         celib::PreintMeas preint_meas = preint.get(0,0);
+        
+        // This conversion between R and euler angles may be a possible source of error
+        Eigen::Vector3d euler_t = preint_meas.delta_R.eulerAngles(2, 1, 0);
 
-        data_iter.push_back(t_iter_prev);
+        
         data_iter.push_back(t_iter);
-
-        for(int x = 0; x < 3; x++){
-            for(int y = 0; y < 3; y++){
-                data_iter.push_back(preint_meas.delta_R.coeff(x,y));
-            }
-        }
-
+        data_iter.push_back(t_iter - t_iter_prev);
         data_iter.push_back(preint_meas.delta_v.coeff(0,0));
         data_iter.push_back(preint_meas.delta_v.coeff(0,1));
         data_iter.push_back(preint_meas.delta_v.coeff(0,2));
+        data_iter.push_back(euler_t[0]);
+        data_iter.push_back(euler_t[1]);
+        data_iter.push_back(euler_t[2]);
 
         data_array.push_back(data_iter);
         t_iter_prev = t_iter;
@@ -232,7 +242,7 @@ void pre_integrate_between_frames(celib::PreintOption preint_opt){
 
     data_array = integrate_between_samples(imu_data, sample_time_array, preint_opt);
 
-    saveCSV(paths[2], &data_array);
+    saveCSV(paths[2], &data_array, "", 9, "Time deltatime a_x a_y a_z w_x w_y w_z");
 }
 
 int main(int argc, char* argv[]){
