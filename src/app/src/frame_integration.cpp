@@ -306,7 +306,7 @@ int main(int argc, char* argv[]){
     }
     std::cout << "Preintegration demonstration with " << to_print << std::endl;
 
-    double integration_length = 2;
+    double integration_length = 0.2;
     if(var_map.count("length"))
     {
         integration_length = var_map["length"].as<double>();
@@ -318,7 +318,7 @@ int main(int argc, char* argv[]){
         nb_infer = var_map["nb_inference"].as<int>() - 1;
     }
 
-    preint_opt.quantum = 0.02;
+    preint_opt.quantum = -1;
     if(var_map.count("quantum"))
     {
         preint_opt.quantum = var_map["quantum"].as<double>();
@@ -328,112 +328,6 @@ int main(int argc, char* argv[]){
 
     pre_integrate_between_frames(preint_opt);
 
-  /*
-    std::vector<double> error = imu_sim.testPreint(start_t, end_t, preint.get(0,0));
-
-    std::cout << "Preintegration errors over window of " << preint_meas.dt << " seconds:" << std::endl;
-    std::cout << "  Rotation [deg] = " << error[0]*180.0/M_PI << std::endl;
-    std::cout << "  Velocity [m/s] = " << error[1] << std::endl;
-    std::cout << "  Position [m]   = " << error[2] << std::endl;
-    std::cout << std::endl;
-    std::cout << "Covariance" << std::endl << preint_meas.cov << std::endl;
-    std::cout << std::endl;
-
-    
-    */
-    
-    /*
-    if(test_jacobians)
-    {
-        double num_quantum = 0.001;
-
-        // Compute numerical preintegrated measurements to compare
-        celib::PreintMeas preint_num_jacobian;
-        for(int i = 0; i < 3; ++i)
-        {
-            auto data_temp_bw = data;
-            auto data_temp_bf = data;
-            for(int j = 0; j < data.gyr.size(); ++j) data_temp_bw.gyr[j].data[i] += num_quantum;
-            for(int j = 0; j < data.acc.size(); ++j) data_temp_bf.acc[j].data[i] += num_quantum;
-
-            celib::ImuPreintegration preint_bw(data_temp_bw, start_t, t, preint_opt, prior);
-            auto temp_preint = preint_bw.get(0,0);
-
-            preint_num_jacobian.d_delta_R_d_bw.col(i) = celib::LogMap(preint_meas.delta_R.transpose()*temp_preint.delta_R)/num_quantum;
-            preint_num_jacobian.d_delta_v_d_bw.col(i) = (temp_preint.delta_v - preint_meas.delta_v)/num_quantum;
-            preint_num_jacobian.d_delta_p_d_bw.col(i) = (temp_preint.delta_p - preint_meas.delta_p)/num_quantum;
-
-            celib::ImuPreintegration preint_bf(data_temp_bf, start_t, t, preint_opt, prior);
-            temp_preint = preint_bf.get(0,0);
-
-            preint_num_jacobian.d_delta_v_d_bf.col(i) = (temp_preint.delta_v - preint_meas.delta_v)/num_quantum;
-            preint_num_jacobian.d_delta_p_d_bf.col(i) = (temp_preint.delta_p - preint_meas.delta_p)/num_quantum;
-        }
-        auto data_temp_dt = data;
-        for(int j = 0; j < data.gyr.size(); ++j) data_temp_dt.gyr[j].t -= num_quantum;
-        for(int j = 0; j < data.acc.size(); ++j) data_temp_dt.acc[j].t -= num_quantum;
-
-        celib::ImuPreintegration preint_dt(data_temp_dt, start_t, t, preint_opt, prior);
-        auto temp_preint = preint_dt.get(0,0);
-        preint_num_jacobian.d_delta_R_d_t = celib::LogMap(preint_meas.delta_R.transpose()*temp_preint.delta_R)/num_quantum;
-        preint_num_jacobian.d_delta_v_d_t = (temp_preint.delta_v - preint_meas.delta_v)/num_quantum;
-        preint_num_jacobian.d_delta_p_d_t = (temp_preint.delta_p - preint_meas.delta_p)/num_quantum;
-
-
-        // Print the jacobians 2 by two to "easily" read the difference
-        std::cout << std::endl;
-        std::cout << "Test Jacobians" << std::endl;
-        std::cout << std::endl;
-        std::cout << "Jacobian Delta R / gyr bias" << std::endl;
-        std::cout << "Computed" << std::endl;
-        std::cout << preint_meas.d_delta_R_d_bw << std::endl;
-        std::cout << "Numerical" << std::endl;
-        std::cout << preint_num_jacobian.d_delta_R_d_bw << std::endl;
-        std::cout << std::endl;
-        std::cout << "Jacobian Delta R / dt " << std::endl;
-        std::cout << "Computed" << std::endl;
-        std::cout << preint_meas.d_delta_R_d_t.transpose() << std::endl;
-        std::cout << "Numerical" << std::endl;
-        std::cout << preint_num_jacobian.d_delta_R_d_t.transpose() << std::endl;
-        std::cout << std::endl;
-        std::cout << "Jacobian Delta v / gyr bias" << std::endl;
-        std::cout << "Computed" << std::endl;
-        std::cout << preint_meas.d_delta_v_d_bw << std::endl;
-        std::cout << "Numerical" << std::endl;
-        std::cout << preint_num_jacobian.d_delta_v_d_bw << std::endl;
-        std::cout << std::endl;
-        std::cout << "Jacobian Delta v / acc bias" << std::endl;
-        std::cout << "Computed" << std::endl;
-        std::cout << preint_meas.d_delta_v_d_bf << std::endl;
-        std::cout << "Numerical" << std::endl;
-        std::cout << preint_num_jacobian.d_delta_v_d_bf << std::endl;
-        std::cout << std::endl;
-        std::cout << "Jacobian Delta v / dt " << std::endl;
-        std::cout << "Computed" << std::endl;
-        std::cout << preint_meas.d_delta_v_d_t.transpose() << std::endl;
-        std::cout << "Numerical" << std::endl;
-        std::cout << preint_num_jacobian.d_delta_v_d_t.transpose() << std::endl;
-        std::cout << std::endl;
-        std::cout << "Jacobian Delta p / gyr bias" << std::endl;
-        std::cout << "Computed" << std::endl;
-        std::cout << preint_meas.d_delta_p_d_bw << std::endl;
-        std::cout << "Numerical" << std::endl;
-        std::cout << preint_num_jacobian.d_delta_p_d_bw << std::endl;
-        std::cout << std::endl;
-        std::cout << "Jacobian Delta p / acc bias" << std::endl;
-        std::cout << "Computed" << std::endl;
-        std::cout << preint_meas.d_delta_p_d_bf << std::endl;
-        std::cout << "Numerical" << std::endl;
-        std::cout << preint_num_jacobian.d_delta_p_d_bf << std::endl;
-        std::cout << std::endl;
-        std::cout << "Jacobian Delta p / dt " << std::endl;
-        std::cout << "Computed" << std::endl;
-        std::cout << preint_meas.d_delta_p_d_t.transpose() << std::endl;
-        std::cout << "Numerical" << std::endl;
-        std::cout << preint_num_jacobian.d_delta_p_d_t.transpose() << std::endl;
-        std::cout << std::endl;
-    }
-    */
 
 
     return 0;

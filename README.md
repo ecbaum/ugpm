@@ -1,3 +1,33 @@
+# Modified UGPM to read UxTS data
+
+This is based on upgm_demo.cpp and modified to read OxTS IMU data and integrate between a set of times.
+
+The input is raw IMU data on the format
+
+	t a_x a_y a_z w_x w_y w_z
+				:
+
+
+and the sampling time is the format
+
+	t_i
+	t_i+1
+	  :
+	
+Output is on the format
+
+	t_i delta_t a_x a_y a_z w_x w_y w_z
+
+where 
+
+	t_i is current time
+	delta_t is t_i - t_i-1
+	a_x, a_y, a_z is defined as v_i - v_i-1
+	w_x, w_y, w_z is defined as angle_i - angle_i-1
+
+The paths to the raw IMU data, sampling times and output destination are set in `config.yaml`.
+
+# 
 author: le.gentil.cedric@gmail.com (Cedric)
 
 # Unified Gaussian Preintegrated Measurements (UGPMs)
