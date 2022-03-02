@@ -1,6 +1,6 @@
 # Modified UGPM to read UxTS data
 
-This is based on upgm_demo.cpp and modified to read OxTS IMU data and integrate between a set of times.
+This is based on upgm_demo.cpp and modified to read OxTS IMU data and integrate between a set of sampling times and in this case frame times.
 
 The input is raw IMU data on the format
 
@@ -27,6 +27,15 @@ where
 
 The paths to the raw IMU data, sampling times and output destination are set in `config.yaml`.
 
+It has the same dependencies and installations as below but is run as
+
+	./app/frame_integration
+
+from `ugpm/build/` and has the same options as `ugpm_demo`. 
+
+Default option is modified. Length of the integration window is set to 0.2 by default since it designed to be integrated between video frames. Length of chucks or quantum is set to -1. Jacobian cannot be called.
+
+Right now, measurement covariance is set in code in `frame_integration.cpp, line 164-165` and not loaded in yaml file. A markdown file explaining conversions between random walk and variance is provided as `noise_conversion.md`.
 # 
 author: le.gentil.cedric@gmail.com (Cedric)
 
