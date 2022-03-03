@@ -16,14 +16,15 @@ and the sampling time is the format
 	
 Output is on the format
 
-	t_i delta_t a_x a_y a_z w_x w_y w_z
+	t_i delta_t v_x v_y v_z w_x w_y w_z a_x a_y a_z 
 
 where 
 
 	t_i is current time
 	delta_t is t_i - t_i-1
-	a_x, a_y, a_z is defined as v_i - v_i-1
+	v_x, v_y, v_z is defined as p_i - p_i-1 or v_ave*delta_t
 	w_x, w_y, w_z is defined as angle_i - angle_i-1
+	a_x, a_y, a_z is defined as v_i - v_i-1 or a_ave*delta_t
 
 The paths to the raw IMU data, sampling times and output destination are set in `config.yaml`.
 

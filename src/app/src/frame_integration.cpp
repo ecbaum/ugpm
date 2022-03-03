@@ -218,12 +218,15 @@ std::vector<std::vector<double>> integrate_between_samples(celib::ImuData imu_da
         
         data_iter.push_back(t_iter);
         data_iter.push_back(t_iter - t_iter_prev);
-        data_iter.push_back(preint_meas.delta_v.coeff(0,0));
-        data_iter.push_back(preint_meas.delta_v.coeff(0,1));
-        data_iter.push_back(preint_meas.delta_v.coeff(0,2));
+        data_iter.push_back(preint_meas.delta_p.coeff(0,0));
+        data_iter.push_back(preint_meas.delta_p.coeff(0,1));
+        data_iter.push_back(preint_meas.delta_p.coeff(0,2));
         data_iter.push_back(euler_t[0]);
         data_iter.push_back(euler_t[1]);
         data_iter.push_back(euler_t[2]);
+        data_iter.push_back(preint_meas.delta_v.coeff(0,0));
+        data_iter.push_back(preint_meas.delta_v.coeff(0,1));
+        data_iter.push_back(preint_meas.delta_v.coeff(0,2));
 
         data_array.push_back(data_iter);
         t_iter_prev = t_iter;
@@ -242,7 +245,7 @@ void pre_integrate_between_frames(celib::PreintOption preint_opt){
 
     data_array = integrate_between_samples(imu_data, sample_time_array, preint_opt);
 
-    saveCSV(paths[2], &data_array, "", 9, "Time deltatime a_x a_y a_z w_x w_y w_z");
+    saveCSV(paths[2], &data_array, "", 9, "Time deltatime v_x v_y v_z w_x w_y w_z a_x a_y a_z");
 }
 
 int main(int argc, char* argv[]){
