@@ -2,3 +2,6 @@ ugpm:
     imu_raw: ../../data/imu_raw3s.txt
     sampling_times: ../../data/sample_times.txt
     save_path: ../../data/pre_integrated.txt
+    sum_prior: 1
+    const_g: 9.82
+    

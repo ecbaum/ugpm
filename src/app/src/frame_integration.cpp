@@ -25,7 +25,7 @@
 #include "common/random.h"
 #include "common/utils.h"
 
-std::string get_path(std::string &str, int N){
+std::string get_content(std::string &str, int N){
 
     int start_of_path;
     std::string path;
@@ -51,8 +51,8 @@ std::vector<std::string> readYAML()
         std::cerr << "error: file open failed.\n";
     }
 
-    std::vector<std::string> expected_strings = {"imu_raw:", "sampling_times:", "save_path"};
-    std::vector<std::string> paths;
+    std::vector<std::string> expected_strings = {"imu_raw:", "sampling_times:", "save_path", "sum_prior", "g_const"};
+    std::vector<std::string> config_content;
 
     int expected_amount = expected_strings.size();
     int retrieved_amount = 0;
@@ -68,14 +68,14 @@ std::vector<std::string> readYAML()
             for(std::string str : expected_strings){
                 if ( line.find(str) != std::string::npos && retrieved_amount<expected_amount) {
                     int N = line.length();
-                    std::string path = get_path(line,N);
-                    paths.push_back(path);
+                    std::string content = get_content(line,N);
+                    config_content.push_back(content);
                     retrieved_amount++;
                 }
             }
         }
     }
-    return paths;
+    return config_content;
 }
 
 
@@ -130,32 +130,23 @@ void saveCSV(std::string path, std::vector<std::vector<double>> *array, std::str
 celib::ImuData convertArray(std::vector<std::vector<double>> *array){
     
     std::cout << "converting csv array to ImuData format: \n";
-    int i;
-    double t, acc_x, acc_y, acc_z, gyr_x, gyr_y, gyr_z;
-
+    
+    std::vector<double> imu_raw(7);     // {t, acc_x, acc_y, acc_z, gyr_x, gyr_y, gyr_z}
     celib::ImuData imu_data;
-
+    
+    int i;
     for (auto& row : *array) {               /* iterate over rows */
         celib::ImuSample acc, gyr;
         i = 0;
         for (auto& val : row){               /* iterate over vals */
-
-            switch(i){
-                case 0: t = val;
-                case 1: acc_x = val;
-                case 2: acc_y = val;
-                case 3: acc_z = val;
-                case 4: gyr_x = val;
-                case 5: gyr_y = val;
-                case 6: gyr_z = val; 
-            }
+            imu_raw[i] = val;
             i++;        
         }
 
-        double acc_data[3] = {acc_x, acc_y, acc_z};
-        double gyr_data[3] = {gyr_x, gyr_y, gyr_z};
-        acc.t = t;
-        gyr.t = t;
+        double acc_data[3] = {imu_raw[1], imu_raw[2], imu_raw[3]};
+        double gyr_data[3] = {imu_raw[4], imu_raw[5], imu_raw[6]};
+        acc.t = imu_raw[0];
+        gyr.t = imu_raw[0];
         memcpy(acc.data, acc_data, sizeof(acc_data));
         memcpy(gyr.data, gyr_data, sizeof(gyr_data));
 
@@ -168,7 +159,8 @@ celib::ImuData convertArray(std::vector<std::vector<double>> *array){
     return imu_data;
 }
 
-std::vector<std::vector<double>> integrate_between_samples(celib::ImuData imu_data, std::vector<std::vector<double>> sample_time_array, celib::PreintOption preint_opt){
+std::vector<std::vector<double>> integrate_between_samples(celib::ImuData imu_data, std::vector<std::vector<double>> sample_time_array, 
+                                                           celib::PreintOption preint_opt, std::string sum_prior_str){
     /*
         Format is
 
@@ -178,35 +170,34 @@ std::vector<std::vector<double>> integrate_between_samples(celib::ImuData imu_da
         delta_t is t_i - t_i-1
         a_x, a_y, a_z is defined as v_i - v_i-1
         w_x, w_y, w_z is defined as angle_i - angle_i-1
-
     */
-    double t_iter, t_iter_prev;
+
+    double dpdt_x_prior, dpdt_y_prior, dpdt_z_prior = 0;
+    double dpdt_x, dpdt_y, dpdt_z, t_iter, t_iter_prev, dt;
 
     t_iter_prev = sample_time_array[0][0];
 
     int a = 0;
     int N = sample_time_array.size();
+    int sum_prior = std::stoi(sum_prior_str);
 
-    std::vector<std::vector<double>> data_array;
+    std::vector<double> data_iter;
+    std::vector<std::vector<double>> t, data_array;
+    
 
-    for(int i = 0; i < N; i++){
+    for(int i = 1; i < N; i++){
 
-        std::vector<double> data_iter;
+        data_iter.clear();
 
         t_iter = sample_time_array[i][0];
 
+        t.clear();
+        t.push_back({t_iter});
+
         celib::PreintPrior prior;
-    
-        double start_t = t_iter_prev;
-
-        std::vector<std::vector<double> > t;
-        std::vector<double> tmp1_ = {t_iter};
-        t.push_back(tmp1_);
-
-        
         celib::StopWatch stop_watch;
         stop_watch.start();
-        celib::ImuPreintegration preint(imu_data, start_t, t, preint_opt, prior);
+        celib::ImuPreintegration preint(imu_data, t_iter_prev, t, preint_opt, prior);
         stop_watch.stop();
         stop_watch.print();
 
@@ -215,13 +206,24 @@ std::vector<std::vector<double>> integrate_between_samples(celib::ImuData imu_da
         // This conversion between R and euler angles may be a possible source of error
         Eigen::Vector3d euler_t = preint_meas.delta_R.eulerAngles(2, 1, 0);
 
-        double dt = t_iter - t_iter_prev;
+        dt = t_iter - t_iter_prev;
+
+        dpdt_x = preint_meas.delta_p[0]/dt;
+        dpdt_y = preint_meas.delta_p[1]/dt;
+        dpdt_z = preint_meas.delta_p[2]/dt;
+
+        if(sum_prior){
+            dpdt_x += dpdt_x_prior;
+            dpdt_y += dpdt_y_prior;
+            dpdt_z += dpdt_z_prior;
+        }
+
         data_iter.push_back(t_iter);
 
         data_iter.push_back(dt);
-        data_iter.push_back(preint_meas.delta_p[0]/dt);
-        data_iter.push_back(preint_meas.delta_p[1]/dt);
-        data_iter.push_back(preint_meas.delta_p[2]/dt);
+        data_iter.push_back(dpdt_x);
+        data_iter.push_back(dpdt_y);
+        data_iter.push_back(dpdt_z);
         data_iter.push_back(euler_t[0]/dt);
         data_iter.push_back(euler_t[1]/dt);
         data_iter.push_back(euler_t[2]/dt);
@@ -229,26 +231,28 @@ std::vector<std::vector<double>> integrate_between_samples(celib::ImuData imu_da
         data_iter.push_back(preint_meas.delta_v[1]/dt);
         data_iter.push_back(preint_meas.delta_v[2]/dt);
 
-
         data_array.push_back(data_iter);
         t_iter_prev = t_iter;
+        dpdt_x_prior = dpdt_x;
+        dpdt_y_prior = dpdt_y;
+        dpdt_z_prior = dpdt_z;
     }
     return data_array;
 }
 
 void pre_integrate_between_frames(celib::PreintOption preint_opt){
-    std::vector<std::string> paths = readYAML();
+    std::vector<std::string> config_content = readYAML();
     std::vector<std::vector<double>> imu_array, sample_time_array, data_array;
 
-    imu_array = readCSV(paths[0]);
-    sample_time_array = readCSV(paths[1]);
+    imu_array = readCSV(config_content[0]);
+    sample_time_array = readCSV(config_content[1]);
 
     celib::ImuData imu_data = convertArray(&imu_array);
 
-    data_array = integrate_between_samples(imu_data, sample_time_array, preint_opt);
+    data_array = integrate_between_samples(imu_data, sample_time_array, preint_opt, config_content[3]);
 
 
-    saveCSV(paths[2], &data_array, "", 9, "Time deltatime v_x v_y v_z w_x w_y w_z a_x a_y a_z ");
+    saveCSV(config_content[2], &data_array, "", 9, "Time deltatime v_x v_y v_z w_x w_y w_z a_x a_y a_z ");
 
 }
 
