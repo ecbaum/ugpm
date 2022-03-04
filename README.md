@@ -5,7 +5,7 @@ This is based on upgm_demo.cpp and modified to read OxTS IMU data and integrate 
 The input is raw IMU data on the format
 
 	t a_x a_y a_z w_x w_y w_z
-				:
+		:
 
 
 and the sampling time is the format
@@ -15,26 +15,18 @@ and the sampling time is the format
 	  :
 	
 Output is on the format
-
-<<<<<<< HEAD
 	t_i delta_t v_x v_y v_z w_x w_y w_z a_x a_y a_z
-=======
-	t_i delta_t v_x v_y v_z w_x w_y w_z a_x a_y a_z 
->>>>>>> 07ae20a5f0d03aae20805ac06abdfc50025dcc57
+
 
 where 
 
 	t_i is current time
 	delta_t is t_i - t_i-1
-<<<<<<< HEAD
+	
 	v_x, v_y, v_z is defined as (p_i - p_i-1)/delta_t
 	w_x, w_y, w_z is defined as (angle_i - angle_i-1)/delta_t
 	a_x, a_y, a_z is defined as (v_i - v_i-1)/delta_t
-=======
-	v_x, v_y, v_z is defined as p_i - p_i-1 or v_ave*delta_t
-	w_x, w_y, w_z is defined as angle_i - angle_i-1
-	a_x, a_y, a_z is defined as v_i - v_i-1 or a_ave*delta_t
->>>>>>> 07ae20a5f0d03aae20805ac06abdfc50025dcc57
+
 
 The paths to the raw IMU data, sampling times and output destination are set in `config.yaml`.
 
