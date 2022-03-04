@@ -24,6 +24,7 @@
 #include "imu_preintegration/preintegration.h"
 #include "common/random.h"
 #include "common/utils.h"
+#include <math.h>
 
 std::string get_content(std::string &str, int N){
 
@@ -133,7 +134,7 @@ celib::ImuData convertArray(std::vector<std::vector<double>> *array){
     
     std::vector<double> imu_raw(7);     // {t, acc_x, acc_y, acc_z, gyr_x, gyr_y, gyr_z}
     celib::ImuData imu_data;
-    
+
     int i;
     for (auto& row : *array) {               /* iterate over rows */
         celib::ImuSample acc, gyr;
@@ -160,7 +161,7 @@ celib::ImuData convertArray(std::vector<std::vector<double>> *array){
 }
 
 std::vector<std::vector<double>> integrate_between_samples(celib::ImuData imu_data, std::vector<std::vector<double>> sample_time_array, 
-                                                           celib::PreintOption preint_opt, std::string sum_prior_str){
+                                                           celib::PreintOption preint_opt, std::string sum_prior_str, std::string g_const_str){
     /*
         Format is
 
@@ -173,13 +174,18 @@ std::vector<std::vector<double>> integrate_between_samples(celib::ImuData imu_da
     */
 
     double dpdt_x_prior, dpdt_y_prior, dpdt_z_prior = 0;
-    double dpdt_x, dpdt_y, dpdt_z, t_iter, t_iter_prev, dt;
+    double dpdt_x, dpdt_y, dpdt_z, dvdt_x, dvdt_y, dvdt_z, t_iter, t_iter_prev, dt;
 
     t_iter_prev = sample_time_array[0][0];
 
     int a = 0;
     int N = sample_time_array.size();
     int sum_prior = std::stoi(sum_prior_str);
+    double g_const = -1;
+    if(!g_const_str.empty()){
+        g_const = std::stod(g_const_str);
+    }
+
 
     std::vector<double> data_iter;
     std::vector<std::vector<double>> t, data_array;
@@ -212,6 +218,15 @@ std::vector<std::vector<double>> integrate_between_samples(celib::ImuData imu_da
         dpdt_y = preint_meas.delta_p[1]/dt;
         dpdt_z = preint_meas.delta_p[2]/dt;
 
+        dvdt_x = preint_meas.delta_v[0]/dt;
+        dvdt_y = preint_meas.delta_v[1]/dt;
+        dvdt_z = preint_meas.delta_v[2]/dt;
+
+        if(g_const != -1){
+            dpdt_z += g_const*dt/2;
+            dvdt_z += g_const;
+        }
+
         if(sum_prior){
             dpdt_x += dpdt_x_prior;
             dpdt_y += dpdt_y_prior;
@@ -227,9 +242,9 @@ std::vector<std::vector<double>> integrate_between_samples(celib::ImuData imu_da
         data_iter.push_back(euler_t[0]/dt);
         data_iter.push_back(euler_t[1]/dt);
         data_iter.push_back(euler_t[2]/dt);
-        data_iter.push_back(preint_meas.delta_v[0]/dt);
-        data_iter.push_back(preint_meas.delta_v[1]/dt);
-        data_iter.push_back(preint_meas.delta_v[2]/dt);
+        data_iter.push_back(dvdt_x);
+        data_iter.push_back(dvdt_y);
+        data_iter.push_back(dvdt_z);
 
         data_array.push_back(data_iter);
         t_iter_prev = t_iter;
@@ -249,8 +264,7 @@ void pre_integrate_between_frames(celib::PreintOption preint_opt){
 
     celib::ImuData imu_data = convertArray(&imu_array);
 
-    data_array = integrate_between_samples(imu_data, sample_time_array, preint_opt, config_content[3]);
-
+    data_array = integrate_between_samples(imu_data, sample_time_array, preint_opt, config_content[3], config_content[4]);
 
     saveCSV(config_content[2], &data_array, "", 9, "Time deltatime v_x v_y v_z w_x w_y w_z a_x a_y a_z ");
 
