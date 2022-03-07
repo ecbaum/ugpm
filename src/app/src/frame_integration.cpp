@@ -119,7 +119,7 @@ void saveCSV(std::string path, std::vector<std::vector<double>> *array, std::str
         for (const auto& inner : *array) {
             for (const auto& item : inner) {
 
-                myfile << std::fixed << std::setprecision(precision) << item << seperator << " ";
+                myfile << std::fixed << std::setprecision(precision) << std::scientific <<item << seperator << " ";
             }
             myfile << "\n";  
         }
@@ -161,7 +161,7 @@ celib::ImuData convertArray(std::vector<std::vector<double>> *array){
 }
 
 std::vector<std::vector<double>> integrate_between_samples(celib::ImuData imu_data, std::vector<std::vector<double>> sample_time_array, 
-                                                           celib::PreintOption preint_opt, std::string sum_prior_str, std::string g_const_str){
+                                                           celib::PreintOption preint_opt){
     /*
         Format is
 
@@ -180,12 +180,6 @@ std::vector<std::vector<double>> integrate_between_samples(celib::ImuData imu_da
 
     int a = 0;
     int N = sample_time_array.size();
-    int sum_prior = std::stoi(sum_prior_str);
-    double g_const = -1;
-    if(!g_const_str.empty()){
-        g_const = std::stod(g_const_str);
-    }
-
 
     std::vector<double> data_iter;
     std::vector<std::vector<double>> t, data_array;
@@ -208,43 +202,42 @@ std::vector<std::vector<double>> integrate_between_samples(celib::ImuData imu_da
         stop_watch.print();
 
         celib::PreintMeas preint_meas = preint.get(0,0);
-        
+            
         // This conversion between R and euler angles may be a possible source of error
         Eigen::Vector3d euler_t = preint_meas.delta_R.eulerAngles(2, 1, 0);
 
+         
         dt = t_iter - t_iter_prev;
 
-        dpdt_x = preint_meas.delta_p[0]/dt;
-        dpdt_y = preint_meas.delta_p[1]/dt;
-        dpdt_z = preint_meas.delta_p[2]/dt;
-
-        dvdt_x = preint_meas.delta_v[0]/dt;
-        dvdt_y = preint_meas.delta_v[1]/dt;
-        dvdt_z = preint_meas.delta_v[2]/dt;
-
-        if(g_const != -1){
-            dpdt_z += g_const*dt/2;
-            dvdt_z += g_const;
-        }
-
-        if(sum_prior){
-            dpdt_x += dpdt_x_prior;
-            dpdt_y += dpdt_y_prior;
-            dpdt_z += dpdt_z_prior;
-        }
-
         data_iter.push_back(t_iter);
-
         data_iter.push_back(dt);
-        data_iter.push_back(dpdt_x);
-        data_iter.push_back(dpdt_y);
-        data_iter.push_back(dpdt_z);
-        data_iter.push_back(euler_t[0]/dt);
-        data_iter.push_back(euler_t[1]/dt);
-        data_iter.push_back(euler_t[2]/dt);
-        data_iter.push_back(dvdt_x);
-        data_iter.push_back(dvdt_y);
-        data_iter.push_back(dvdt_z);
+
+        for(int a = 0; a < 3; a++){
+            for(int b = 0; b < 3; b++){
+                data_iter.push_back(preint_meas.delta_R.coeff(a,b));
+            }
+        }
+        for(int a = 0; a < 3; a++){
+            data_iter.push_back(preint_meas.delta_v[a]);
+        }
+        for(int a = 0; a < 3; a++){
+            data_iter.push_back(preint_meas.delta_p[a]);
+        }
+        for(int a = 0; a < 3; a++){
+            for(int b = 0; b < 3; b++){
+                data_iter.push_back(preint_meas.cov.coeff(a,b));
+            }
+        }
+        for(int a = 3; a < 6; a++){
+            for(int b = 3; b < 6; b++){
+                data_iter.push_back(preint_meas.cov.coeff(a,b));
+            }
+        }
+        for(int a = 6; a < 9; a++){
+            for(int b = 6; b < 9; b++){
+                data_iter.push_back(preint_meas.cov.coeff(a,b));
+            }
+        }
 
         data_array.push_back(data_iter);
         t_iter_prev = t_iter;
@@ -264,9 +257,13 @@ void pre_integrate_between_frames(celib::PreintOption preint_opt){
 
     celib::ImuData imu_data = convertArray(&imu_array);
 
-    data_array = integrate_between_samples(imu_data, sample_time_array, preint_opt, config_content[3], config_content[4]);
-
-    saveCSV(config_content[2], &data_array, "", 9, "Time deltatime v_x v_y v_z w_x w_y w_z a_x a_y a_z ");
+    data_array = integrate_between_samples(imu_data, sample_time_array, preint_opt);
+    std::string header_str = "t dt dR_11 dR_12 dR_13 dR_21 dR_22 dR_23 dR_31 dR_32 dR_33";
+    header_str += " dv_x dv_y dv_z dp_x dp_y dp_z";
+    header_str += " cov_dR_11 cov_dR_12 cov_dR_13 cov_dR_21 cov_dR_22 cov_dR_23 cov_dR_31 cov_dR_32 cov_dR_33";
+    header_str += " cov_dv_11 cov_dv_12 cov_dv_13 cov_dv_21 cov_dv_22 cov_dv_23 cov_dv_31 cov_dv_32 cov_dv_33";
+    header_str += " cov_dp_11 cov_dp_12 cov_dp_13 cov_dp_21 cov_dp_22 cov_dp_23 cov_dp_31 cov_dp_32 cov_dp_33";
+    saveCSV(config_content[2], &data_array, "", 18, header_str);
 
 }
 
